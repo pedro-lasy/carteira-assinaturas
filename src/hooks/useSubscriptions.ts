@@ -1,97 +1,119 @@
-'use client';
+'use client'
 
-import { useState, useEffect } from 'react';
-import { Subscription, SubscriptionCategory, UserSettings, AlertSubscription } from '@/lib/types';
-import { mockSubscriptions } from '@/lib/constants';
-import { getDaysUntilRenewal, generateId, getNextBillingDate } from '@/lib/utils';
+import { useState, useEffect } from 'react'
+import { getSupabaseClient } from '@/lib/supabase'
+import { Subscription } from '@/lib/types'
+import { useSession } from '@/components/SessionContextProvider'
 
 export function useSubscriptions() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [settings, setSettings] = useState<UserSettings>({
-    currency: 'BRL',
-    notifications: true,
-    darkMode: true
-  });
-  const [selectedCategory, setSelectedCategory] = useState<SubscriptionCategory | 'all'>('all');
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
+  const [loading, setLoading] = useState(true)
+  const { user } = useSession()
+  const supabase = getSupabaseClient()
 
   useEffect(() => {
-    // Simular carregamento dos dados
-    const savedSubscriptions = localStorage.getItem('subscriptions');
-    const savedSettings = localStorage.getItem('settings');
-    
-    if (savedSubscriptions) {
-      setSubscriptions(JSON.parse(savedSubscriptions));
+    if (user) {
+      fetchSubscriptions(user.id)
     } else {
-      setSubscriptions(mockSubscriptions);
+      setSubscriptions([])
+      setLoading(false)
     }
-    
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
+  }, [user])
+
+  const fetchSubscriptions = async (userId: string) => {
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Erro ao buscar assinaturas:', error)
+        return
+      }
+
+      setSubscriptions(data || [])
+    } catch (error) {
+      console.error('Erro ao buscar assinaturas:', error)
+    } finally {
+      setLoading(false)
     }
-  }, []);
+  }
 
-  useEffect(() => {
-    localStorage.setItem('subscriptions', JSON.stringify(subscriptions));
-  }, [subscriptions]);
+  const addSubscription = async (subscription: Omit<Subscription, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+    if (!user) return
 
-  useEffect(() => {
-    localStorage.setItem('settings', JSON.stringify(settings));
-  }, [settings]);
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .insert([
+          {
+            ...subscription,
+            user_id: user.id,
+          }
+        ])
+        .select()
+        .single()
 
-  const addSubscription = (subscription: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newSubscription: Subscription = {
-      ...subscription,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      billingDate: getNextBillingDate(subscription.billingDate)
-    };
-    
-    setSubscriptions(prev => [...prev, newSubscription]);
-  };
+      if (error) {
+        console.error('Erro ao adicionar assinatura:', error)
+        return
+      }
 
-  const updateSubscription = (id: string, updates: Partial<Subscription>) => {
-    setSubscriptions(prev => 
-      prev.map(sub => 
-        sub.id === id 
-          ? { ...sub, ...updates, updatedAt: new Date().toISOString() }
-          : sub
+      setSubscriptions(prev => [data, ...prev])
+    } catch (error) {
+      console.error('Erro ao adicionar assinatura:', error)
+    }
+  }
+
+  const updateSubscription = async (id: string, updates: Partial<Subscription>) => {
+    if (!user) return
+
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Erro ao atualizar assinatura:', error)
+        return
+      }
+
+      setSubscriptions(prev =>
+        prev.map(sub => sub.id === id ? data : sub)
       )
-    );
-  };
+    } catch (error) {
+      console.error('Erro ao atualizar assinatura:', error)
+    }
+  }
 
-  const deleteSubscription = (id: string) => {
-    setSubscriptions(prev => prev.filter(sub => sub.id !== id));
-  };
+  const toggleSubscription = async (id: string) => {
+    const subscription = subscriptions.find(sub => sub.id === id)
+    if (!subscription) return
 
-  const filteredSubscriptions = selectedCategory === 'all' 
-    ? subscriptions 
-    : subscriptions.filter(sub => sub.category === selectedCategory);
+    await updateSubscription(id, { is_active: !subscription.is_active })
+  }
 
-  const totalMonthly = subscriptions
-    .filter(sub => sub.isActive)
-    .reduce((total, sub) => total + sub.price, 0);
-
-  const upcomingRenewals: AlertSubscription[] = subscriptions
-    .filter(sub => sub.isActive)
-    .map(sub => ({
-      subscription: sub,
-      daysUntilRenewal: getDaysUntilRenewal(sub.billingDate)
-    }))
-    .filter(alert => alert.daysUntilRenewal <= 7 && alert.daysUntilRenewal >= 0)
-    .sort((a, b) => a.daysUntilRenewal - b.daysUntilRenewal);
+  const signOut = async () => {
+    await supabase.auth.signOut()
+  }
 
   return {
-    subscriptions: filteredSubscriptions,
-    allSubscriptions: subscriptions,
-    settings,
-    selectedCategory,
-    totalMonthly,
-    upcomingRenewals,
+    subscriptions,
+    loading,
+    user,
     addSubscription,
     updateSubscription,
-    deleteSubscription,
-    setSettings,
-    setSelectedCategory
-  };
+    toggleSubscription,
+    signOut,
+  }
 }
