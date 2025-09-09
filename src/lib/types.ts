@@ -1,14 +1,14 @@
 export interface Subscription {
   id: string;
+  user_id: string;
   name: string;
   price: number;
-  billingDate: string;
-  category: SubscriptionCategory;
-  logo?: string;
-  description?: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  billing_cycle: 'monthly' | 'yearly';
+  category: string;
+  next_billing_date: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export type SubscriptionCategory = 
