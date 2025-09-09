@@ -5,6 +5,7 @@ import Script from "next/script";
 import "./globals.css";
 // Import all available fonts for AI usage
 import "../lib/fonts";
+import { SessionContextProvider } from "@/components/SessionContextProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -29,7 +30,9 @@ export default function RootLayout({
       <body
         className={`${inter.variable} font-inter antialiased bg-[#0D0D0D] text-white`}
       >
-        {children}
+        <SessionContextProvider>
+          {children}
+        </SessionContextProvider>
       </body>
     </html>
   );
