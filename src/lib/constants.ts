@@ -1,5 +1,17 @@
 import { Subscription } from "./types";
 
+// Categorias disponíveis
+export const CATEGORIES = [
+  'Entretenimento',
+  'Produtividade', 
+  'Música',
+  'Design',
+  'Desenvolvimento',
+  'Educação',
+  'Saúde',
+  'Outros'
+];
+
 // Mock data para demonstração
 export const mockSubscriptions: Subscription[] = [
   {
