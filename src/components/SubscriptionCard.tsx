@@ -1,122 +1,121 @@
-'use client';
+'use client'
 
-import { Subscription } from '@/lib/types';
-import { formatCurrency, formatDate, getDaysUntilRenewal, categoryConfigs } from '@/lib/utils';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { MoreVertical, Calendar, DollarSign } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Calendar, DollarSign, Trash2, Edit, Loader2 } from 'lucide-react'
+import { formatCurrency, formatDate } from '@/lib/utils'
+import type { Subscription } from '@/lib/types'
 
 interface SubscriptionCardProps {
-  subscription: Subscription;
-  currency: string;
-  onEdit: (subscription: Subscription) => void;
-  onDelete: (id: string) => void;
-  onViewDetails: (subscription: Subscription) => void;
+  subscription: Subscription
+  onRemove: (id: string) => Promise<boolean>
 }
 
-export function SubscriptionCard({ 
-  subscription, 
-  currency, 
-  onEdit, 
-  onDelete, 
-  onViewDetails 
-}: SubscriptionCardProps) {
-  const daysUntilRenewal = getDaysUntilRenewal(subscription.billingDate);
-  const categoryConfig = categoryConfigs[subscription.category];
-  const isUpcoming = daysUntilRenewal <= 7 && daysUntilRenewal >= 0;
+export function SubscriptionCard({ subscription, onRemove }: SubscriptionCardProps) {
+  const [isRemoving, setIsRemoving] = useState(false)
+
+  const handleRemove = async () => {
+    setIsRemoving(true)
+    await onRemove(subscription.id)
+    setIsRemoving(false)
+  }
+
+  const getBillingCycleText = (cycle: string) => {
+    return cycle === 'monthly' ? 'Mensal' : 'Anual'
+  }
+
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
+      'Entretenimento': 'bg-red-500/20 text-red-400 border-red-500/30',
+      'Produtividade': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      'Música': 'bg-green-500/20 text-green-400 border-green-500/30',
+      'Design': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+      'Desenvolvimento': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+      'Educação': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+      'Saúde': 'bg-pink-500/20 text-pink-400 border-pink-500/30',
+      'Outros': 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    }
+    return colors[category] || colors['Outros']
+  }
+
+  const isUpcoming = (date: string) => {
+    const billingDate = new Date(date)
+    const today = new Date()
+    const diffTime = billingDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays <= 7 && diffDays >= 0
+  }
 
   return (
-    <Card 
-      className="group relative overflow-hidden bg-gradient-to-br from-[#1A1A1A] to-[#0D0D0D] border-white/10 hover:border-white/20 transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-blue-500/10 cursor-pointer"
-      onClick={() => onViewDetails(subscription)}
-    >
-      <CardContent className="p-6">
-        {/* Header com logo e menu */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-2xl border border-white/10">
-              {subscription.logo || '📦'}
-            </div>
-            <div>
-              <h3 className="font-semibold text-white text-lg leading-tight">
-                {subscription.name}
-              </h3>
-              <p className="text-gray-400 text-sm">
-                {categoryConfig.label}
-              </p>
-            </div>
-          </div>
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 w-8 p-0 text-gray-400 hover:text-white hover:bg-white/10"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-[#1A1A1A] border-white/10">
-              <DropdownMenuItem 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(subscription);
-                }}
-                className="text-white hover:bg-white/10"
-              >
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(subscription.id);
-                }}
-                className="text-red-400 hover:bg-red-500/10"
-              >
-                Excluir
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Preço */}
-        <div className="mb-4">
-          <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="h-4 w-4 text-green-400" />
-            <span className="text-2xl font-bold text-white">
-              {formatCurrency(subscription.price, currency)}
-            </span>
-          </div>
-          <p className="text-gray-400 text-sm">por mês</p>
-        </div>
-
-        {/* Data de renovação */}
-        <div className="flex items-center justify-between">
+    <Card className="bg-gray-900 border-gray-800 hover:border-gray-700 transition-colors">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <CardTitle className="text-white text-lg font-semibold">
+            {subscription.name}
+          </CardTitle>
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-blue-400" />
-            <span className="text-gray-300 text-sm">
-              {formatDate(subscription.billingDate)}
-            </span>
-          </div>
-          
-          {isUpcoming && (
             <Badge 
               variant="outline" 
-              className="bg-orange-500/10 text-orange-400 border-orange-500/20 text-xs"
+              className={getCategoryColor(subscription.category)}
             >
-              {daysUntilRenewal === 0 ? 'Hoje' : `${daysUntilRenewal}d`}
+              {subscription.category}
+            </Badge>
+          </div>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-gray-300">
+            <DollarSign className="w-4 h-4" />
+            <span className="text-2xl font-bold text-white">
+              {formatCurrency(subscription.price)}
+            </span>
+            <span className="text-sm text-gray-400">
+              / {getBillingCycleText(subscription.billingCycle)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-gray-300">
+          <Calendar className="w-4 h-4" />
+          <span className="text-sm">
+            Próxima cobrança: {formatDate(subscription.nextBillingDate)}
+          </span>
+          {isUpcoming(subscription.nextBillingDate) && (
+            <Badge variant="outline" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs">
+              Em breve
             </Badge>
           )}
         </div>
 
-        {/* Gradiente de destaque para renovações próximas */}
-        {isUpcoming && (
-          <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-red-500/5 pointer-events-none" />
-        )}
+        <div className="flex items-center gap-2 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
+          >
+            <Edit className="w-4 h-4 mr-2" />
+            Editar
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRemove}
+            disabled={isRemoving}
+            className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500"
+          >
+            {isRemoving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
-  );
+  )
 }
